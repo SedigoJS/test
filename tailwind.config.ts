@@ -12,6 +12,10 @@ export default {
         background: "var(--background)",
         foreground: "var(--foreground)",
       },
+      fontFamily: {
+        'gigasan': ['Giga Sans', 'sans-serif'],
+        'playfair': ['Playfair Display', 'serif'],
+      },
     },
   },
   plugins: [],

@@ -14,8 +14,32 @@
   }
 }
 
+
+/* Custom font definitions */
+@font-face {
+  font-family: 'Giga Sans';
+  src: url('/fonts/GigaSans-Bold.otf') format('opentype');
+  font-weight: bold;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Giga Sans';
+  src: url('/fonts/GigaSans-Light.otf') format('opentype');
+  font-weight: 300;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Playfair Display';
+  src: url('/fonts/PlayfairDisplay.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+}
+
+
 body {
   color: var(--foreground);
   background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: 'Giga Sans', 'Playfair Display', Arial, Helvetica, sans-serif;
 }
