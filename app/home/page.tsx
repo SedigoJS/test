@@ -8,7 +8,7 @@ export default function SkincarePage() {
       <main className="max-w-full mx-auto flex flex-col lg:flex-row items-center lg:items-start px-5 md:px-10 lg:px-20 md:pt-10">
         <section className="relative w-full lg:w-1/2 py-16 md:py-20 lg:py-28 text-center lg:text-left flex flex-col justify-between">
           <div className="font-sans mt-5 md:mt-10">
-            <h1 className="text-4xl md:text-5xl lg:text-6xl font-medium mb-5 md:mb-7 font-playfair">
+            <h1 className="text-4xl md:text-5xl lg:text-6xl font-medium mb-5 md:mb-7 font-playfair text-black">
               Your Skin Matters
             </h1>
             <p className="text-lg md:text-2xl lg:text-3xl text-gray-700 font-thin">

@@ -48,9 +48,9 @@ const data = [
 
 const Product = () => {
   return (
-    <div className="bg-slate-50">
+    <div className="bg-slate-50 font-gigasan">
       <section className="py-12 px-4 sm:px-8 md:px-16 lg:px-40">
-        <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-center mb-8 sm:mb-12 font-playfair">
+        <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-center mb-8 sm:mb-12 font-playfair text-black">
           — PRODUCTS —
         </h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 sm:gap-8">
@@ -65,15 +65,15 @@ const Product = () => {
               />
               <div className="absolute bottom-0 bg-white w-full flex flex-col justify-between items-center px-6 py-4 sm:py-5 rounded-xl rounded-t-3xl">
                 <div>
-                  <h3 className="font-playfair text-lg sm:text-xl md:text-2xl mb-1 sm:mb-2">
+                  <h3 className="font-playfair text-lg sm:text-xl md:text-2xl mb-1 sm:mb-2 text-black">
                     {product.name}
                   </h3>
-                  <p className="font-thin text-xs sm:text-sm md:text-base mb-2 sm:mb-4">
+                  <p className="font-thin text-xs sm:text-sm md:text-base mb-2 sm:mb-4 text-black">
                     {product.description}
                   </p>
                 </div>
                 <div className="flex justify-between items-center w-full">
-                  <p className="text-sm sm:text-base md:text-lg font-meduim">₱ {product.price}</p>
+                  <p className="text-sm sm:text-base md:text-lg font-meduim text-black">₱ {product.price}</p>
                   <Image
                     src="/Shopee Logo.png"
                     alt="Shopee"
@@ -104,7 +104,7 @@ const Product = () => {
           </div>
           <div className="flex items-center w-full md:w-[40%] p-6 md:px-10">
             <div>
-              <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold mb-6">
+              <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold mb-6 text-black">
                 Your skin&apos;s partner for a better you.
               </h2>
               <p className="text-sm sm:text-base md:text-lg lg:text-xl text-gray-600">
@@ -187,7 +187,7 @@ const Product = () => {
               className="object-cover w-full h-full rounded-3xl border-gray-400 shadow-md"
             />
           </div>
-          <h3 className="text-xs sm:text-3xl lg:text-4xl font-playfair">{category}</h3>
+          <h3 className="text-xs sm:text-3xl lg:text-4xl font-playfair text-black">{category}</h3>
           <p className="text-xs sm:text-base text-gray-500 cursor-pointer font-gigasan">Read</p>
         </div>
       ))}
