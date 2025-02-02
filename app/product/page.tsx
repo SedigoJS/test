@@ -1,5 +1,6 @@
 import React from "react";
 import Image from "next/image";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 const data = [
   {
@@ -53,39 +54,64 @@ const Product = () => {
         <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-center mb-8 sm:mb-12 font-playfair text-black">
           — PRODUCTS —
         </h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 sm:gap-8">
-          {data.map((product, i) => (
-            <div key={i} className="relative h-[400px] sm:h-[450px] rounded-xl shadow-lg">
-              <Image
-                src={product.image}
-                alt={product.name}
-                width={1000}
-                height={1000}
-                className="h-full w-full rounded-xl object-cover"
-              />
-              <div className="absolute bottom-0 bg-white w-full flex flex-col justify-between items-center px-6 py-4 sm:py-5 rounded-xl rounded-t-3xl">
-                <div>
-                  <h3 className="font-playfair text-lg sm:text-xl md:text-2xl mb-1 sm:mb-2 text-black">
-                    {product.name}
-                  </h3>
-                  <p className="font-thin text-xs sm:text-sm md:text-base mb-2 sm:mb-4 text-black">
-                    {product.description}
-                  </p>
-                </div>
-                <div className="flex justify-between items-center w-full">
-                  <p className="text-sm sm:text-base md:text-lg font-meduim text-black">₱ {product.price}</p>
+
+        <Tabs defaultValue="anti-acne" className="w-full mb-8 font-gigasan">
+          <TabsList className="w-full max-w-md mx-auto grid grid-cols-3 mb-10">
+            <TabsTrigger value="brightening" className="text-base sm:text-lg opacity-50 data-[state=active]:opacity-100 data-[state=active]:border-b-2 data-[state=active]:border-blue-200">
+              Brightening
+            </TabsTrigger>
+            <TabsTrigger value="anti-acne" className="text-base sm:text-lg opacity-50 data-[state=active]:opacity-100 data-[state=active]:border-b-2 data-[state=active]:border-blue-200">
+              Anti-Acne
+            </TabsTrigger>
+            <TabsTrigger value="anti-aging" className="text-base sm:text-lg opacity-50 data-[state=active]:opacity-100 data-[state=active]:border-b-2 data-[state=active]:border-blue-200">
+              Anti-Aging
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="anti-acne" className="mt-8">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 sm:gap-8"> 
+              {data.map((product, i) => (
+                <div key={i} className="relative h-[400px] sm:h-[450px] rounded-xl shadow-lg">
                   <Image
-                    src="/Shopee Logo.png"
-                    alt="Shopee"
+                    src={product.image}
+                    alt={product.name}
                     width={1000}
                     height={1000}
-                    className="cursor-pointer w-7 sm:w-8 md:w-9 h-7 sm:h-8 md:h-9"
+                    className="h-full w-full rounded-xl object-cover"
                   />
+                  <div className="absolute bottom-0 bg-white w-full flex flex-col justify-between items-center px-6 py-4 sm:py-5 rounded-xl rounded-t-3xl">
+                    <div>
+                      <h3 className="font-playfair text-lg sm:text-xl md:text-2xl mb-1 sm:mb-2 text-black">
+                        {product.name}
+                      </h3>
+                      <p className="font-thin text-xs sm:text-sm md:text-base mb-2 sm:mb-4 text-black">
+                        {product.description}
+                      </p>
+                    </div>
+                    <div className="flex justify-between items-center w-full">
+                      <p className="text-sm sm:text-base md:text-lg font-meduim text-black">₱ {product.price}</p>
+                      <Image
+                        src="/Shopee Logo.png"
+                        alt="Shopee"
+                        width={1000}
+                        height={1000}
+                        className="cursor-pointer w-7 sm:w-8 md:w-9 h-7 sm:h-8 md:h-9"
+                      />
+                    </div>
+                  </div>
                 </div>
-              </div>
+              ))}
             </div>
-          ))}
-        </div>
+          </TabsContent>
+
+          <TabsContent value="brightening">
+            <div className="text-center text-gray-500">Brightening products coming soon</div>
+          </TabsContent>
+
+          <TabsContent value="anti-aging">
+            <div className="text-center text-gray-500">Anti-aging products coming soon</div>
+          </TabsContent>
+        </Tabs>
       </section>
 
 
