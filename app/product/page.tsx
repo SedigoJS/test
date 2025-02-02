@@ -56,7 +56,7 @@ const Product = () => {
         </h2>
 
         <Tabs defaultValue="anti-acne" className="w-full mb-8 font-gigasan">
-          <TabsList className="w-full max-w-md mx-auto grid grid-cols-3 mb-10">
+          <TabsList className="w-full max-w-md mx-auto grid grid-cols-3 mb-10 text-black">
             <TabsTrigger value="brightening" className="text-base sm:text-lg opacity-50 data-[state=active]:opacity-100 data-[state=active]:border-b-2 data-[state=active]:border-blue-200">
               Brightening
             </TabsTrigger>
