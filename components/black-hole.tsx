@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useMemo } from "react"
+import { useRef, useMemo, useEffect } from "react"
 import { Canvas, useFrame, useThree } from "@react-three/fiber"
 import * as THREE from "three"
 
@@ -19,12 +19,14 @@ import * as THREE from "three"
  *
  * where h = |r x v| is the conserved specific angular momentum. We march each
  * camera ray with this acceleration (RK4), detecting:
- *   - capture by the event horizon (r < 1)
- *   - crossing of the equatorial accretion disk (between ISCO at r=3 and r_out)
- *   - escape to infinity -> lensed background starfield
+ *   - capture by the event horizon (r < 1)               -> black shadow
+ *   - passage through the volumetric accretion disk      -> emissive sampling
+ *   - escape to infinity                                 -> lensed starfield
  *
  * The disk is shaded with blackbody-like temperature falloff, relativistic
- * Doppler beaming/boosting from orbital velocity, and gravitational redshift.
+ * Doppler beaming/boosting and gravitational redshift. Photons that loop the
+ * hole repeatedly produce the bright photon ring at 1.5 r_s and secondary
+ * (lensed) images of the disk.
  */
 
 const fragmentShader = /* glsl */ `
@@ -39,10 +41,11 @@ uniform float uDiskInner;  // ISCO ~ 3 r_s in this normalization (r_s = 1)
 uniform float uDiskOuter;
 
 #define PI 3.14159265359
-#define STEPS 220
+#define STEPS 260
 #define HORIZON 1.0
+#define DISK_THICK 0.55   // vertical half-thickness of the accretion disk
 
-// --- hash / noise for stars + disk turbulence ---
+// --- hash / noise ---
 float hash21(vec2 p){
   p = fract(p * vec2(123.34, 456.21));
   p += dot(p, p + 45.32);
@@ -65,90 +68,90 @@ float noise3(vec3 x){
     f.z);
   return n;
 }
+float fbm(vec3 p){
+  float v = 0.0, a = 0.5;
+  for (int i = 0; i < 5; i++){
+    v += a * noise3(p);
+    p *= 2.02;
+    a *= 0.5;
+  }
+  return v;
+}
 
 // Lensed background star field, sampled by escape direction.
 vec3 starField(vec3 dir){
   vec3 col = vec3(0.0);
-  // Use direction projected onto a grid for stable stars.
   vec2 uv = vec2(atan(dir.z, dir.x), asin(clamp(dir.y, -1.0, 1.0)));
-  for (float l = 0.0; l < 3.0; l += 1.0){
-    float scale = 220.0 + l * 360.0;
+  for (float l = 0.0; l < 4.0; l += 1.0){
+    float scale = 180.0 + l * 340.0;
     vec2 g = uv * scale;
     vec2 id = floor(g);
     float h = hash21(id + l * 37.0);
-    if (h > 0.978){
+    if (h > 0.972){
       vec2 cell = fract(g) - 0.5;
       float d = length(cell);
-      float bright = smoothstep(0.5, 0.0, d) * (h - 0.978) / 0.022;
-      float tw = 0.7 + 0.3 * sin(uTime * 2.0 + h * 100.0);
-      vec3 tint = mix(vec3(0.7, 0.8, 1.0), vec3(1.0, 0.9, 0.75), hash21(id + 5.0));
-      col += bright * tw * tint * 0.9;
+      float bright = smoothstep(0.5, 0.0, d) * (h - 0.972) / 0.028;
+      float tw = 0.6 + 0.4 * sin(uTime * 2.0 + h * 100.0);
+      vec3 tint = mix(vec3(0.65, 0.78, 1.0), vec3(1.0, 0.86, 0.66), hash21(id + 5.0));
+      col += bright * tw * tint * (1.0 + l * 0.4);
     }
   }
-  // faint milky-way style haze band
-  float band = exp(-pow(dir.y * 2.2, 2.0)) * 0.04;
-  col += band * vec3(0.18, 0.2, 0.32) * (0.5 + 0.5 * noise3(dir * 6.0));
+  // faint galactic haze band
+  float band = exp(-pow(dir.y * 2.0, 2.0));
+  float neb = fbm(dir * 4.0 + 3.0);
+  col += band * mix(vec3(0.02,0.03,0.06), vec3(0.10,0.07,0.14), neb) * 0.5;
+  col += pow(neb, 3.0) * band * vec3(0.12, 0.10, 0.16) * 0.4;
   return col;
 }
 
 // Blackbody-ish color ramp from temperature parameter t in [0,1].
 vec3 temperatureColor(float t){
-  // cool outer (orange) -> hot inner (blue-white)
-  vec3 c1 = vec3(0.55, 0.12, 0.02); // deep orange-red
-  vec3 c2 = vec3(1.0,  0.5,  0.12); // orange
-  vec3 c3 = vec3(1.0,  0.92, 0.7);  // white-yellow
-  vec3 c4 = vec3(0.75, 0.85, 1.0);  // blue-white
+  vec3 c1 = vec3(0.6, 0.10, 0.01); // deep orange-red
+  vec3 c2 = vec3(1.0, 0.45, 0.08); // orange
+  vec3 c3 = vec3(1.0, 0.93, 0.72); // white-yellow
+  vec3 c4 = vec3(0.72, 0.86, 1.0); // blue-white
   vec3 col = mix(c1, c2, smoothstep(0.0, 0.35, t));
-  col = mix(col, c3, smoothstep(0.3, 0.7, t));
-  col = mix(col, c4, smoothstep(0.7, 1.0, t));
+  col = mix(col, c3, smoothstep(0.32, 0.72, t));
+  col = mix(col, c4, smoothstep(0.72, 1.0, t));
   return col;
 }
 
-// Emission + relativistic effects when a ray crosses the disk plane.
+// Emissive sampling of the volumetric disk at point p with photon dir vel.
 vec3 sampleDisk(vec3 p, vec3 vel){
   float r = length(p.xz);
   if (r < uDiskInner || r > uDiskOuter) return vec3(0.0);
 
-  float tNorm = clamp((r - uDiskInner) / (uDiskOuter - uDiskInner), 0.0, 1.0);
+  // Vertical gaussian falloff -> disk has real thickness, thinner outside.
+  float thick = DISK_THICK * (0.5 + 0.5 * (r / uDiskOuter));
+  float vert = exp(-pow(p.y / thick, 2.0));
+  if (vert < 0.004) return vec3(0.0);
 
-  // Temperature follows ~ r^-3/4 (Shakura-Sunyaev thin disk).
-  float temp = pow(uDiskInner / r, 0.75);
+  float temp = pow(uDiskInner / r, 0.75);            // Shakura-Sunyaev T ~ r^-3/4
 
-  // Keplerian orbital direction (counter-clockwise) in the equatorial plane.
   float ang = atan(p.z, p.x);
-  vec3 phiHat = vec3(-sin(ang), 0.0, cos(ang));
-  // Orbital speed (fraction of c): v = sqrt(r_s / (2 r)) for circular orbit.
-  float speed = sqrt(0.5 / r);
-  speed = clamp(speed, 0.0, 0.85);
+  vec3 phiHat = vec3(-sin(ang), 0.0, cos(ang));      // Keplerian (CCW) direction
+  float speed = clamp(sqrt(0.5 / r), 0.0, 0.9);      // v = sqrt(r_s / 2r)
 
-  // Doppler factor from line-of-sight velocity component.
   vec3 viewDir = normalize(vel);
   float beta = speed;
   float cosA = dot(phiHat, viewDir);
   float gamma = 1.0 / sqrt(1.0 - beta * beta);
-  // Relativistic Doppler factor (approaching > 1 -> brighter & blueshifted).
-  float doppler = 1.0 / (gamma * (1.0 - beta * cosA));
-
-  // Gravitational redshift factor sqrt(1 - r_s/r).
-  float grav = sqrt(max(1.0 - 1.0 / r, 0.0001));
-
-  // Combined frequency shift (affects color temperature).
+  float doppler = 1.0 / (gamma * (1.0 - beta * cosA)); // relativistic Doppler
+  float grav = sqrt(max(1.0 - 1.0 / r, 0.0001));       // gravitational redshift
   float shift = doppler * grav;
 
-  // Turbulent emission pattern, sheared by differential rotation.
-  float swirl = ang + uTime * (1.2 / pow(r, 1.5)) * 6.0;
-  vec3 sp = vec3(cos(swirl) * r, p.y, sin(swirl) * r);
-  float turb = noise3(sp * 1.4) * 0.6 + noise3(sp * 4.0) * 0.4;
-  float density = smoothstep(0.0, 1.0, turb) * 0.7 + 0.3;
-  // soften edges
-  density *= smoothstep(uDiskOuter, uDiskOuter * 0.8, r);
-  density *= smoothstep(uDiskInner, uDiskInner * 1.15, r);
+  // Differential rotation shear + turbulence.
+  float swirl = ang + uTime * (1.1 / pow(r, 1.5)) * 6.0;
+  vec3 sp = vec3(cos(swirl) * r, p.y * 2.0, sin(swirl) * r);
+  float turb = fbm(sp * 1.1);
+  float density = smoothstep(0.25, 0.95, turb) * 0.8 + 0.25;
+  density *= vert;
+  density *= smoothstep(uDiskOuter, uDiskOuter * 0.82, r);
+  density *= smoothstep(uDiskInner, uDiskInner * 1.12, r);
 
   vec3 base = temperatureColor(clamp(temp * shift, 0.0, 1.0));
-
-  // Brightness: emission * relativistic beaming (doppler^3 for surface bright.)
-  float beam = pow(doppler, 3.0);
-  float intensity = (0.15 + temp * 2.4) * density * beam * grav;
+  float beam = pow(doppler, 3.0);                      // surface-brightness beaming
+  float intensity = (0.12 + temp * 2.6) * density * beam * grav;
 
   return base * intensity;
 }
@@ -162,7 +165,6 @@ vec3 accel(vec3 pos, float h2){
 void main(){
   vec2 uv = (gl_FragCoord.xy - 0.5 * uResolution.xy) / uResolution.y;
 
-  // Build the primary ray in world space.
   vec3 dir = normalize(uv.x * uCamBasis[0] * uFov
                      + uv.y * uCamBasis[1] * uFov
                      + uCamBasis[2]);
@@ -170,23 +172,21 @@ void main(){
   vec3 pos = uCamPos;
   vec3 vel = dir;
 
-  // Conserved angular momentum for this photon.
   float h2 = dot(cross(pos, vel), cross(pos, vel));
 
   vec3 color = vec3(0.0);
+  float transmit = 1.0;     // remaining transparency through the disk
   bool captured = false;
-  bool escaped = false;
 
   float prevY = pos.y;
+  float windings = 0.0;     // accumulated bend angle -> photon ring proxy
+  vec3 prevDir = vel;
 
   for (int i = 0; i < STEPS; i++){
     float r = length(pos);
 
-    // Adaptive step: small near the hole, large far away.
-    float dt = 0.018 * r;
-    dt = clamp(dt, 0.012, 0.45);
+    float dt = clamp(0.016 * r, 0.010, 0.42);
 
-    // RK4 integration of d(pos)/dt = vel, d(vel)/dt = accel.
     vec3 k1p = vel;
     vec3 k1v = accel(pos, h2);
     vec3 k2p = vel + 0.5 * dt * k1v;
@@ -199,35 +199,46 @@ void main(){
     vec3 newPos = pos + (dt / 6.0) * (k1p + 2.0 * k2p + 2.0 * k3p + k4p);
     vec3 newVel = vel + (dt / 6.0) * (k1v + 2.0 * k2v + 2.0 * k3v + k4v);
 
-    // Disk crossing: equatorial plane y = 0.
-    if (prevY * newPos.y < 0.0){
-      float tCross = prevY / (prevY - newPos.y);
-      vec3 cross = mix(pos, newPos, tCross);
-      vec3 crossVel = mix(vel, newVel, tCross);
-      vec3 disk = sampleDisk(cross, crossVel);
-      // Disk is emissive; accumulate (front to back, simple add since thin).
-      color += disk;
+    // Sample the volumetric disk near the equatorial plane.
+    if (abs(newPos.y) < DISK_THICK * 1.5 && transmit > 0.01){
+      float rr = length(newPos.xz);
+      if (rr > uDiskInner && rr < uDiskOuter){
+        vec3 em = sampleDisk(newPos, newVel);
+        float dens = length(em) * 0.18 + 0.02;
+        float absorb = clamp(dens * dt * 2.2, 0.0, 1.0);
+        color += transmit * em * dt * 1.4;
+        transmit *= (1.0 - absorb * 0.5);
+      }
     }
 
     prevY = newPos.y;
     pos = newPos;
     vel = newVel;
 
+    // Track total deflection for the photon-ring glow.
+    windings += acos(clamp(dot(normalize(vel), normalize(prevDir)), -1.0, 1.0));
+    prevDir = vel;
+
     float nr = length(pos);
     if (nr < HORIZON){ captured = true; break; }
-    if (nr > 60.0){ escaped = true; break; }
+    if (nr > 70.0){ break; }
   }
 
   if (!captured){
-    color += starField(normalize(vel));
+    color += transmit * starField(normalize(vel));
   }
 
-  // Subtle bloom-ish tonemap (ACES approximation).
-  color *= 1.0;
+  // Photon ring: photons that bent a large total angle without being captured
+  // graze the unstable circular orbit at 1.5 r_s -> add a thin bright halo.
+  if (!captured){
+    float ring = smoothstep(2.4, 4.2, windings) * (1.0 - smoothstep(5.5, 8.0, windings));
+    color += ring * vec3(1.0, 0.85, 0.6) * 0.9;
+  }
+
+  // ACES-ish tonemap + gamma.
   vec3 x = color;
   vec3 mapped = (x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14);
   mapped = clamp(mapped, 0.0, 1.0);
-  // mild gamma
   mapped = pow(mapped, vec3(0.4545));
 
   gl_FragColor = vec4(mapped, 1.0);
@@ -240,43 +251,52 @@ void main(){
 }
 `
 
-function BlackHoleQuad() {
-  const matRef = useRef<THREE.ShaderMaterial>(null)
+type Controls = {
+  azimuth: number
+  incline: number
+  radius: number
+  dragging: boolean
+  lastX: number
+  lastY: number
+  autoVel: number
+}
+
+function BlackHoleQuad({ controls }: { controls: React.MutableRefObject<Controls> }) {
   const { size, viewport } = useThree()
 
   const uniforms = useMemo(
     () => ({
       uResolution: { value: new THREE.Vector2(1, 1) },
       uTime: { value: 0 },
-      uCamPos: { value: new THREE.Vector3(0, 2.2, 14) },
+      uCamPos: { value: new THREE.Vector3(0, 2.2, 15) },
       uCamBasis: { value: new THREE.Matrix3() },
-      uFov: { value: Math.tan((55 * Math.PI) / 180 / 2) },
+      uFov: { value: Math.tan((52 * Math.PI) / 180 / 2) },
       uDiskInner: { value: 3.0 },
-      uDiskOuter: { value: 14.0 },
+      uDiskOuter: { value: 15.0 },
     }),
     [],
   )
 
-  useFrame((state) => {
-    const t = state.clock.elapsedTime
+  useFrame((state, delta) => {
     const u = uniforms
+    const c = controls.current
 
     u.uResolution.value.set(size.width * viewport.dpr, size.height * viewport.dpr)
-    u.uTime.value = t
+    u.uTime.value = state.clock.elapsedTime
 
-    // Camera slowly orbits the black hole at a shallow inclination so the
-    // lensed far side of the disk arcs over the top.
-    const radius = 15.0
-    const azimuth = t * 0.12
-    const incline = 0.32 + Math.sin(t * 0.18) * 0.06
+    // Gentle auto-orbit when the user is not dragging.
+    if (!c.dragging) {
+      c.azimuth += c.autoVel * delta
+    }
+
+    const radius = c.radius
     const camPos = new THREE.Vector3(
-      Math.cos(azimuth) * radius * Math.cos(incline),
-      Math.sin(incline) * radius,
-      Math.sin(azimuth) * radius * Math.cos(incline),
+      Math.cos(c.azimuth) * radius * Math.cos(c.incline),
+      Math.sin(c.incline) * radius,
+      Math.sin(c.azimuth) * radius * Math.cos(c.incline),
     )
     u.uCamPos.value.copy(camPos)
 
-    // Build an orthonormal camera basis looking at the origin.
     const forward = new THREE.Vector3().subVectors(new THREE.Vector3(0, 0, 0), camPos).normalize()
     const worldUp = new THREE.Vector3(0, 1, 0)
     const right = new THREE.Vector3().crossVectors(forward, worldUp).normalize()
@@ -288,7 +308,6 @@ function BlackHoleQuad() {
     <mesh frustumCulled={false}>
       <planeGeometry args={[2, 2]} />
       <shaderMaterial
-        ref={matRef}
         fragmentShader={fragmentShader}
         vertexShader={vertexShader}
         uniforms={uniforms}
@@ -300,14 +319,72 @@ function BlackHoleQuad() {
 }
 
 export default function BlackHole() {
+  const controls = useRef<Controls>({
+    azimuth: 0,
+    incline: 0.28,
+    radius: 15,
+    dragging: false,
+    lastX: 0,
+    lastY: 0,
+    autoVel: 0.12,
+  })
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+
+    const onDown = (e: PointerEvent) => {
+      const c = controls.current
+      c.dragging = true
+      c.lastX = e.clientX
+      c.lastY = e.clientY
+      el.setPointerCapture(e.pointerId)
+    }
+    const onMove = (e: PointerEvent) => {
+      const c = controls.current
+      if (!c.dragging) return
+      const dx = e.clientX - c.lastX
+      const dy = e.clientY - c.lastY
+      c.lastX = e.clientX
+      c.lastY = e.clientY
+      c.azimuth -= dx * 0.006
+      c.incline = Math.max(-1.45, Math.min(1.45, c.incline + dy * 0.005))
+    }
+    const onUp = (e: PointerEvent) => {
+      controls.current.dragging = false
+      try {
+        el.releasePointerCapture(e.pointerId)
+      } catch {}
+    }
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault()
+      const c = controls.current
+      c.radius = Math.max(5.5, Math.min(40, c.radius + e.deltaY * 0.01))
+    }
+
+    el.addEventListener("pointerdown", onDown)
+    el.addEventListener("pointermove", onMove)
+    el.addEventListener("pointerup", onUp)
+    el.addEventListener("pointerleave", onUp)
+    el.addEventListener("wheel", onWheel, { passive: false })
+    return () => {
+      el.removeEventListener("pointerdown", onDown)
+      el.removeEventListener("pointermove", onMove)
+      el.removeEventListener("pointerup", onUp)
+      el.removeEventListener("pointerleave", onUp)
+      el.removeEventListener("wheel", onWheel)
+    }
+  }, [])
+
   return (
-    <div className="h-screen w-full bg-black">
+    <div ref={containerRef} className="h-screen w-full cursor-grab touch-none bg-black active:cursor-grabbing">
       <Canvas
         gl={{ antialias: true, powerPreference: "high-performance" }}
-        dpr={[1, 1.5]}
+        dpr={[1, 1.75]}
         camera={{ position: [0, 0, 1], fov: 50 }}
       >
-        <BlackHoleQuad />
+        <BlackHoleQuad controls={controls} />
       </Canvas>
     </div>
   )

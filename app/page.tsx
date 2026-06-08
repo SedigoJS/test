@@ -15,7 +15,11 @@ export default function Page() {
           <h1 className="mt-2 text-pretty text-2xl font-semibold leading-tight md:text-4xl">Ray-traced black hole</h1>
           <p className="mt-3 max-w-sm text-pretty text-sm leading-relaxed text-white/60">
             Light paths are integrated as null geodesics through curved spacetime — producing real gravitational
-            lensing, the photon ring, Doppler beaming, and gravitational redshift.
+            lensing, the photon ring, a volumetric disk with secondary images, Doppler beaming, and gravitational
+            redshift.
+          </p>
+          <p className="mt-4 font-mono text-[11px] uppercase tracking-[0.2em] text-white/40">
+            Drag to orbit · scroll to zoom
           </p>
         </header>
 
